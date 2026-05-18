@@ -254,7 +254,12 @@ async function generateDocx(rawData, filename, reportTopic) {
       ? "ARTICLE"
       : "BOOK";
 
-    const year = parseInt(getFirst(entry, "year"), 10) || 0;
+    const yearText = getFirst(entry, "year") || "";
+    const yearMatch = yearText.match(/\d{4}/);
+
+    const year = yearMatch
+      ? parseInt(yearMatch[0], 10)
+      : 0;
 
     return {
       entry,
