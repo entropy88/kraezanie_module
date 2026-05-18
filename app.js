@@ -69,6 +69,7 @@ function formatAuthors(rawAuthors) {
 // ============================
 
 function formatBook(entry) {
+  const heading = getFirst(entry, "heading") || "";
   const main_sig = getFirst(entry, "signature") || "";
   console.log(main_sig)
   const sortWord = getFirst(entry, "sort_word") || getFirst(entry, "author") || "";
@@ -135,6 +136,7 @@ function formatBook(entry) {
     : "";
 
   return {
+    heading,
     mainLine: `${line01}\n${line1}\n${line2}`,
     notes,
     itemTypeLine,
@@ -143,10 +145,10 @@ function formatBook(entry) {
 }
 
 function formatArticle(entry) {
-    
+
   const itemTypes = getProps(entry, "item_type")
     .map(v => v.toUpperCase());
-
+  const heading = getFirst(entry, "heading") || "";
   const sortWord = getFirst(entry, "sort_word") || "";
 
   const line1 = itemTypes.includes("GOI") ? "" : sortWord;
@@ -160,9 +162,9 @@ function formatArticle(entry) {
   const issue = getFirst(entry, "issue") || "";
   const year = getFirst(entry, "year") || "";
   const pages =
-  getFirst(entry, "pages_art") ||
-  getFirst(entry, "art_pages") ||
-  "";
+    getFirst(entry, "pages_art") ||
+    getFirst(entry, "art_pages") ||
+    "";
   const column = getFirst(entry, "column") || "";
   const journalCity = getFirst(entry, "journal_city") || "";
 
@@ -190,6 +192,7 @@ function formatArticle(entry) {
     : "";
 
   return {
+    heading,
     mainLine: `${line1}\n${line2}`,
     notes,
     itemTypeLine,
@@ -198,6 +201,7 @@ function formatArticle(entry) {
 }
 
 function formatOther(entry) {
+  const heading = getFirst(entry, "heading") || "";
   const rawAuthor = getFirst(entry, "author") || "";
   const author = formatAuthors(rawAuthor);
 
@@ -219,6 +223,7 @@ function formatOther(entry) {
     : "";
 
   return {
+    heading,
     mainLine: `${line1}\n${line2}`,
     notes,
     itemTypeLine,
@@ -230,66 +235,83 @@ function formatOther(entry) {
 // DOCX Generation
 // ============================
 
-async function generateDocx(rawData, filename) {
+async function generateDocx(rawData, filename, reportTopic) {
 
   const entries = rawData
     .split(/(?=^@)/m)
     .map(e => e.trim())
     .filter(Boolean);
 
-const parsed = entries.map((entry) => {
+  const parsed = entries.map((entry) => {
 
-  const itemTypes = getProps(entry, "item_type")
-    .map(v => v.toUpperCase());
+    const itemTypes = getProps(entry, "item_type")
+      .map(v => v.toUpperCase());
 
-  // Article if it has a source field
-  const hasSource = getFirst(entry, "source");
+    // Article if it has a source field
+    const hasSource = getFirst(entry, "source");
 
-  const recordType = hasSource
-    ? "ARTICLE"
-    : "BOOK";
+    const recordType = hasSource
+      ? "ARTICLE"
+      : "BOOK";
 
-  const year = parseInt(getFirst(entry, "year"), 10) || 0;
+    const year = parseInt(getFirst(entry, "year"), 10) || 0;
 
-  return {
-    entry,
-    itemTypes,
-    recordType,
-    year,
-  };
-});
+    return {
+      entry,
+      itemTypes,
+      recordType,
+      year,
+    };
+  });
 
-  
-parsed.sort((a, b) => {
 
-  const aIsBook = a.recordType === "BOOK";
-  const bIsBook = b.recordType === "BOOK";
+  parsed.sort((a, b) => {
 
-  if (aIsBook && !bIsBook) return -1;
-  if (!aIsBook && bIsBook) return 1;
+    const aIsBook = a.recordType === "BOOK";
+    const bIsBook = b.recordType === "BOOK";
 
-  return a.year - b.year;
-});
+    if (aIsBook && !bIsBook) return -1;
+    if (!aIsBook && bIsBook) return 1;
 
-const books = parsed.filter((p) =>
-  p.recordType === "BOOK"
-);
+    return a.year - b.year;
+  });
 
-const articles = parsed.filter((p) =>
-  p.recordType === "ARTICLE"
-);
+  const books = parsed.filter((p) =>
+    p.recordType === "BOOK"
+  );
 
-const others = [];
+  const articles = parsed.filter((p) =>
+    p.recordType === "ARTICLE"
+  );
+
+  const others = [];
 
 
   const total = parsed.length;
   const children = [];
 
+  if (reportTopic && reportTopic.trim()) {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: reportTopic.trim(),
+            bold: true,
+            size: 32,
+          }),
+        ],
+        spacing: {
+          after: 300,
+        },
+      })
+    );
+  }
+
   children.push(
     new Paragraph({
       children: [
         new TextRun({
-         text: "Общо записи: " + total + " (Книги: " + books.length + ", Статии: " + articles.length + ", Други: " + others.length + ")",
+          text: "Общо записи: " + total + " (Книги: " + books.length + ", Статии: " + articles.length + ", Други: " + others.length + ")",
           bold: true,
           size: 24,
         }),
@@ -301,60 +323,79 @@ const others = [];
   function pushEntry(formatFn, entries) {
 
     entries.forEach((e) => {
-       
+
       const {
+        heading,
         mainLine,
         notes,
         itemTypeLine,
         otherSources,
       } = formatFn(e.entry);
 
-      mainLine.split("\n").forEach((line) => {
+      if (heading) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: heading,
+                bold: true,
+                size: 24,
+              }),
+            ],
+          })
+        );
+      }
 
-        const sourceMatch = line.match(/В: ([^,]+)/);
 
-        if (sourceMatch) {
+      mainLine
+        .split("\n")
+        .filter(line => line.trim() !== "")
+        .forEach((line) => {
 
-          const beforeSource = line.slice(0, sourceMatch.index + 3);
-          const sourceText = sourceMatch[1];
-          const afterSource = line.slice(
-            sourceMatch.index + 3 + sourceText.length
-          );
+          const sourceMatch = line.match(/В: ([^,]+)/);
 
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: beforeSource,
-                  size: 24,
-                }),
-                new TextRun({
-                  text: sourceText,
-                  italics: true,
-                  size: 24,
-                }),
-                new TextRun({
-                  text: afterSource,
-                  size: 24,
-                }),
-              ],
-            })
-          );
+          if (sourceMatch) {
 
-        } else {
+            const beforeSource = line.slice(0, sourceMatch.index + 3);
+            const sourceText = sourceMatch[1];
+            const afterSource = line.slice(
+              sourceMatch.index + 3 + sourceText.length
+            );
 
-          children.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: line,
-                  size: 24,
-                }),
-              ],
-            })
-          );
-        }
-      });
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: beforeSource,
+                    size: 24,
+                  }),
+                  new TextRun({
+                    text: sourceText,
+                    italics: true,
+                    size: 24,
+                  }),
+                  new TextRun({
+                    text: afterSource,
+                    size: 24,
+                  }),
+                ],
+              })
+            );
+
+          } else {
+
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: line,
+                    size: 24,
+                  }),
+                ],
+              })
+            );
+          }
+        });
 
       if (itemTypeLine) {
         children.push(
@@ -485,6 +526,10 @@ generateBtn.addEventListener("click", async () => {
     .value
     .trim() || "sorted_shelf";
 
+  const reportTopic = document.getElementById("reportTopic")
+    .value
+    .trim();
+
   if (!fileInput.files.length) {
     statusDiv.textContent = "Please select a BibTeX file.";
     return;
@@ -500,7 +545,7 @@ generateBtn.addEventListener("click", async () => {
 
     statusDiv.textContent = "Generating DOCX...";
 
-    await generateDocx(rawData, filename);
+    await generateDocx(rawData, filename, reportTopic);
 
     statusDiv.textContent = "Done!";
 

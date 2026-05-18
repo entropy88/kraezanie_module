@@ -78,17 +78,24 @@
 <div class="card">
   <h1>BibTeX → DOCX</h1>
 
-  <label>Select BibTeX file</label>
+  <label>Тема на справката</label>
+<input
+  type="text"
+  id="reportTopic"
+  placeholder="Въведете тема..."
+/>
+
+  <label>Изберете Bibtex файл</label>
   <input type="file" id="bibfile" accept=".bib,.bibtex" />
 
-  <label>Output filename</label>
+  <label>Именовай файл</label>
   <input
     type="text"
     id="filename"
     value="sorted_shelf"
   />
 
-  <button id="generateBtn">Generate DOCX</button>
+  <button id="generateBtn">Генерирай DOCX</button>
 
   <div id="status"></div>
 </div>
