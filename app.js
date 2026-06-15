@@ -181,11 +181,11 @@ function formatArticle(entry) {
     }
   }
 
-  if (source) line2 += `. - В: ${source}`;
+  if (source) line2 += `. – В: ${source}`;
   if (journalCity) line2 += ` (${journalCity})`;
-  if (issue) line2 += ` , бр. ${issue}`;
-  if (year) line2 += ` , (${year})`;
-  if (pages) line2 += ` , с. ${pages}`;
+  if (issue) line2 += `, бр. ${issue}`;
+  if (year) line2 += `, (${year})`;
+  if (pages) line2 += `, с. ${pages}`;
 
   const itemTypeLine = itemTypes.length > 0
     ? `Item types: ${itemTypes.join(", ")}`
@@ -295,6 +295,29 @@ async function generateDocx(rawData, filename, reportTopic) {
   const total = parsed.length;
   const children = [];
 
+  //cosmetics:
+  children.push(
+  new Paragraph({
+    alignment: "center",
+    children: [
+      new TextRun({
+        text: 'Регионална народна библиотека "Иван Вазов" - Пловдив',        
+        size: 28,
+      }),
+    ],
+  }),
+  new Paragraph({
+    alignment: "center",
+    children: [
+      new TextRun({
+        text: 'Отдел "Краезнание"', 
+        size: 28,
+      }),
+    ],
+  }),
+
+);
+
   if (reportTopic && reportTopic.trim()) {
     children.push(
       new Paragraph({
@@ -313,6 +336,21 @@ async function generateDocx(rawData, filename, reportTopic) {
   }
 
   children.push(
+  new Paragraph({
+    alignment: "center",
+    children: [
+      new TextRun({
+        text: "Библиографска справка",       
+        size: 24,
+      }),
+    ],
+    spacing: {
+      after: 400,
+    },
+  })
+);
+
+  children.push(
     new Paragraph({
       children: [
         new TextRun({
@@ -325,9 +363,10 @@ async function generateDocx(rawData, filename, reportTopic) {
     new Paragraph({ text: "" })
   );
 
-  function pushEntry(formatFn, entries) {
+  function pushEntry(formatFn, entries,  startNumber = 1) {
 
-    entries.forEach((e) => {
+    entries.forEach((e, index) => {
+      const entryNumber = startNumber + index;
 
       const {
         heading,
@@ -337,25 +376,40 @@ async function generateDocx(rawData, filename, reportTopic) {
         otherSources,
       } = formatFn(e.entry);
 
-      if (heading) {
-        children.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: heading,
-                bold: true,
-                size: 24,
-              }),
-            ],
-          })
-        );
-      }
+      //remove heading
+      // if (heading) {
+      //   children.push(
+      //     new Paragraph({
+      //       children: [
+      //         new TextRun({
+      //           text: heading,
+      //           bold: true,
+      //           size: 24,
+      //         }),
+      //       ],
+      //     })
+      //   );
+      // }
 
+//put number on top:
+children.push(
+  new Paragraph({
+    children: [
+      new TextRun({
+        text: `${entryNumber}.`,
+        size: 24,
+      }),
+    ],
+  })
+);
 
-      mainLine
-        .split("\n")
-        .filter(line => line.trim() !== "")
-        .forEach((line) => {
+const lines = mainLine
+  .split("\n")
+  .filter(line => line.trim() !== "");
+
+lines.forEach((line) => {
+
+ 
 
           const sourceMatch = line.match(/В: ([^,]+)/);
 
@@ -456,6 +510,7 @@ async function generateDocx(rawData, filename, reportTopic) {
     });
   }
 
+  let currentNumber = 1;
   if (books.length > 0) {
 
     children.push(
@@ -470,7 +525,8 @@ async function generateDocx(rawData, filename, reportTopic) {
       })
     );
 
-    pushEntry(formatBook, books);
+    pushEntry(formatBook, books, currentNumber);
+currentNumber += books.length;
   }
 
   if (articles.length > 0) {
@@ -487,7 +543,9 @@ async function generateDocx(rawData, filename, reportTopic) {
       })
     );
 
-    pushEntry(formatArticle, articles);
+    pushEntry(formatArticle, articles, currentNumber);
+currentNumber += articles.length;
+
   }
 
   if (others.length > 0) {
@@ -504,7 +562,8 @@ async function generateDocx(rawData, filename, reportTopic) {
       })
     );
 
-    pushEntry(formatOther, others);
+    pushEntry(formatOther, others, currentNumber);
+currentNumber += others.length;
   }
 
   const doc = new Document({
