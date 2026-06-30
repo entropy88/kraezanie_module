@@ -235,12 +235,18 @@ function formatOther(entry) {
 // DOCX Generation
 // ============================
 
-async function generateDocx(rawData, filename, reportTopic) {
+async function generateDocx(rawData, filename, reportTopic, numberEntries) {
 
   const entries = rawData
     .split(/(?=^@)/m)
     .map(e => e.trim())
     .filter(Boolean);
+
+  //months array
+  const months = [
+  "ян.", "февр.", "март", "апр.", "май", "юни",
+  "юли", "авг.", "септ.", "окт.", "ноем.", "дек"
+];
 
   const parsed = entries.map((entry) => {
 
@@ -254,32 +260,51 @@ async function generateDocx(rawData, filename, reportTopic) {
       ? "ARTICLE"
       : "BOOK";
 
-    const yearText = getFirst(entry, "year") || "";
-    const yearMatch = yearText.match(/\d{4}/);
+const yearText = getFirst(entry, "year") || "";
 
-    const year = yearMatch
-      ? parseInt(yearMatch[0], 10)
-      : 0;
+// Year
+const yearMatch = yearText.match(/\d{4}/);
+const year = yearMatch ? parseInt(yearMatch[0], 10) : 0;
 
-    return {
-      entry,
-      itemTypes,
-      recordType,
-      year,
-    };
+// Month
+const monthIndex = months.findIndex(month =>
+  yearText.toLowerCase().includes(month.toLowerCase())
+);
+
+// Day
+const dayMatch = yearText.match(/^\s*(\d{1,2})/);
+const day = dayMatch ? parseInt(dayMatch[1], 10) : 0;
+
+return {
+  entry,
+  itemTypes,
+  recordType,
+  year,
+  month: monthIndex === -1 ? 99 : monthIndex,
+  day,
+};
   });
 
 
   parsed.sort((a, b) => {
 
-    const aIsBook = a.recordType === "BOOK";
-    const bIsBook = b.recordType === "BOOK";
+  const aIsBook = a.recordType === "BOOK";
+  const bIsBook = b.recordType === "BOOK";
 
-    if (aIsBook && !bIsBook) return -1;
-    if (!aIsBook && bIsBook) return 1;
+  if (aIsBook && !bIsBook) return -1;
+  if (!aIsBook && bIsBook) return 1;
 
+  if (a.year !== b.year) {
     return a.year - b.year;
-  });
+  }
+
+  if (a.month !== b.month) {
+    return a.month - b.month;
+  }
+
+  return a.day - b.day;
+});
+
 
   const books = parsed.filter((p) =>
     p.recordType === "BOOK"
@@ -376,32 +401,19 @@ async function generateDocx(rawData, filename, reportTopic) {
         otherSources,
       } = formatFn(e.entry);
 
-      //remove heading
-      // if (heading) {
-      //   children.push(
-      //     new Paragraph({
-      //       children: [
-      //         new TextRun({
-      //           text: heading,
-      //           bold: true,
-      //           size: 24,
-      //         }),
-      //       ],
-      //     })
-      //   );
-      // }
 
-//put number on top:
-children.push(
-  new Paragraph({
-    children: [
-      new TextRun({
-        text: `${entryNumber}.`,
-        size: 24,
-      }),
-    ],
-  })
-);
+if (numberEntries) {
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `${entryNumber}.`,
+          size: 24,
+        }),
+      ],
+    })
+  );
+}
 
 const lines = mainLine
   .split("\n")
@@ -594,6 +606,10 @@ generateBtn.addEventListener("click", async () => {
     .value
     .trim();
 
+   //check if the records in output should be numbered
+   const numberEntries = document.getElementById("numberEntries").checked;
+
+   
   if (!fileInput.files.length) {
     statusDiv.textContent = "Please select a BibTeX file.";
     return;
@@ -609,7 +625,7 @@ generateBtn.addEventListener("click", async () => {
 
     statusDiv.textContent = "Generating DOCX...";
 
-    await generateDocx(rawData, filename, reportTopic);
+   await generateDocx(rawData, filename, reportTopic, numberEntries);
 
     statusDiv.textContent = "Done!";
 
